@@ -1,0 +1,23 @@
+{
+  "name": "openaiassistant",
+  "version": "1.0.0",
+  "description": "",
+  "main": "fundamentalAssistant.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon CryptoAssistant.js",
+    "start": "nodemon TestEnviroment.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.4",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "nodedev": "^0.0.1",
+    "nodemon": "^3.1.4",
+    "openai": "^4.61.0"
+  }
+}
