@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { OpenAI } from 'openai';
 import fetch from "node-fetch"; // Ensure you have node-fetch installed
 import express from "express"
 
@@ -72,11 +72,12 @@ async function getCryptoNews() {
 
 //create assistant 
 let assistant;
-let threadId;
-let thread;
+
 async function createAssistant() {
   try {
-    assistant = await openai.beta.assistants.create({      instructions: "Try to answer as short as possible. You have access to different APIs so you are able to give the user real-time crypto data and news data. In addition, if you are given data, you can explain everything in detail and use your existing knowledge.",
+    assistant = await openai.beta.assistants.create({
+      name: "Crypto-Assistant",
+      instructions: "Try to answer as short as possible. You have access to different APIs so you are able to give the user real-time crypto data and news data. In addition, if you are given data, you can explain everything in detail and use your existing knowledge.",
       tools: [
         { type: "code_interpreter" },
         { type: "file_search" },
@@ -105,10 +106,8 @@ async function createAssistant() {
       ],
       model: "gpt-4o"
     });
-     thread = await openai.beta.threads.create();
-    threadId = thread.id; // Store the thread ID
-    console.log('Thread created:', threadId);
 
+    console.log('Assistant created:', assistant);
   } catch (error) {
     console.error('Error creating assistant:', error);
     throw new Error('Failed to create assistant');
@@ -121,174 +120,163 @@ createAssistant();
 let assistantResponse = {}; // Define assistantResponse as an object
 let toolCallPromises = []; // To hold promises for all tool calls
 
-app.get("/askAssistant/:question", async (req, res) => {
-  const { question } = req.params;  // Get the user's question from the URL
-  console.log("Received question:", question);
 
-  async function main() {
-    try {
-      // Create a new thread for every request
-      const thread = await openai.beta.threads.create();
-      const threadId = thread.id; // Store the new thread ID
+app.get('/askAssistant/:question', async (req, res) => {
+  const { question } = req.params;
+  console.log('Received question:', question);
 
+  // Set headers for streaming response
+  res.set({
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+  });
 
-      //Logging thread content
-      async function main() {
-        const myThread = await openai.beta.threads.retrieve(
-          threadId
-        );
-      
-        console.log(myThread);
-      }
+  res.flushHeaders(); // Flush headers immediately
 
+  let messages = [
+    {
+      role: 'system',
+      content:
+        'Try to answer as concisely as possible. You have access to different APIs so you can provide real-time crypto data and news. Use your existing knowledge to explain the data in detail.',
+    },
+    {
+      role: 'user',
+      content: question,
+    },
+  ];
 
-      console.log("Thread created:", threadId);
+  const functions = [
+    {
+      name: 'get_crypto_currencies',
+      description:
+        'Fetch a list of cryptocurrencies from the CryptoRank API and get real-time data about them.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    {
+      name: 'get_crypto_news',
+      description:
+        'Fetch a list of cryptocurrency-related news articles from the News API using default values.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  ];
 
-      // Create the initial messages array with the system prompt and user question
-      const messages = [
-        {
-          role: "system",
-          content:
-            "You are Crypto-Assistant. Try to answer as short as possible. You have access to different APIs so you are able to give the user real-time crypto data and news data. In addition, if you are given data, you can explain everything in detail and use your existing knowledge.",
-        },
-        {
-          role: "user",
-          content: question,  // Store the user's question here
-        },
-      ];
+  try {
+    let assistantFinished = false;
 
-      const functions = [
-        {
-          name: "get_crypto_currencies",
-          description:
-            "Fetch a list of cryptocurrencies from the CryptoRank API and get real-time data about them.",
-          parameters: {
-            type: "object",
-            properties: {},
-          },
-        },
-        {
-          name: "get_crypto_news",
-          description:
-            "Fetch a list of cryptocurrency-related news articles from the News API using default values.",
-          parameters: {
-            type: "object",
-            properties: {},
-          },
-        },
-      ];
+    while (!assistantFinished) {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4', // Use 'gpt-3.5-turbo' if you don't have access to GPT-4
+        messages: messages,
+        functions: functions,
+        function_call: 'auto',
+        stream: true,
+      });
 
-      let assistantResponse = {};
-      let shouldContinue = true;
+      const stream = response; // response is a stream
 
-      while (shouldContinue) {
-        // Use the thread ID and messages to create a response in the new thread
-        const response = await openai.chat.completions.create({
-          model: "gpt-4-0613",
-          messages: messages,
-          functions: functions,
-          function_call: "auto", // Ensure the message is stored inside the thread
-        });
+      await new Promise((resolve, reject) => {
+        let functionCall = null;
+        let functionArgs = null;
 
-        const message = response.choices[0].message;
-        console.log("Assistant response:", message);
+        stream.on('data', (chunk) => {
+          const data = chunk.toString();
+          const lines = data
+            .split('\n')
+            .filter((line) => line.trim() !== '');
 
-        if (message.content) {
-          // Assistant provided a response without needing a function call
-          assistantResponse['conversation'] = message.content;
-          shouldContinue = false;
-        } else if (message.function_call) {
-          // Assistant wants to call a function
-          const functionName = message.function_call.name;
-          let functionResult;
-
-          if (functionName === "get_crypto_currencies") {
-            try {
-              const currenciesData = await getCryptoCurrencies();
-
-              if (currenciesData.data) {
-                const topCurrencies = currenciesData.data.slice(0, 5).map((currency) => ({
-                  name: currency.name,
-                  symbol: currency.symbol,
-                  marketCap: currency.values.USD.marketCap.toFixed(2),
-                  price: currency.values.USD.price.toFixed(2),
-                  change24h: currency.values.USD.percentChange24h.toFixed(2),
-                  volume24h: currency.values.USD.volume24h.toFixed(2),
-                  high24h: currency.values.USD.high24h.toFixed(2),
-                  low24h: currency.values.USD.low24h.toFixed(2),
-                }));
-
-                functionResult = topCurrencies.map((c) => `${c.name} (${c.symbol}): $${c.price}`).join("\n");
-                assistantResponse["top_cryptocurrencies"] = topCurrencies;
-                console.log("Assistant response based on API data:\n", );
-              } else {
-                throw new Error("No cryptocurrency data available in the API response.");
-              }
-            } catch (error) {
-              console.error("Error fetching data from API:", error.message);
-              functionResult = `I'm having trouble fetching cryptocurrency data at the moment. ${error.message}`;
-              assistantResponse["error"] = functionResult;
+          for (const line of lines) {
+            const message = line.replace(/^data: /, '');
+            if (message === '[DONE]') {
+              res.write('\n');
+              resolve();
+              return;
             }
-          } else if (functionName === "get_crypto_news") {
             try {
-              const newsData = await getCryptoNews();
+              const parsed = JSON.parse(message);
+              const delta = parsed.choices[0].delta;
 
-              if (newsData.articles) {
-                const topArticles = newsData.articles.map((article) => ({
-                  title: article.title,
-                  description: article.description,
-                  url: article.url,
-                  source: article.source.name,
-                }));
+              if (delta.content) {
+                res.write(delta.content);
+              }
 
-                functionResult = topArticles.map((a) => `${a.title} - ${a.source}\n${a.url}`).join("\n\n");
-                assistantResponse["top_crypto_news"] = topArticles;
-                console.log("Assistant response based on news API data:\n", );
-              } else {
-                throw new Error("No articles found in the API response.");
+              if (delta.function_call) {
+                functionCall = delta.function_call.name;
+                functionArgs = delta.function_call.arguments
+                  ? JSON.parse(delta.function_call.arguments)
+                  : {};
               }
             } catch (error) {
-              console.error("Error fetching news data from API:", error.message);
-              functionResult = `I'm having trouble fetching news data at the moment. ${error.message}`;
-              assistantResponse["error"] = functionResult;
+              console.error(
+                'Could not JSON parse stream message',
+                message,
+                error
+              );
             }
           }
+        });
 
-          // Add the assistant's message with the function call to the messages
-          messages.push({
-            role: "assistant",
-            content: null,
-            function_call: message.function_call,
-          });
+        stream.on('error', (error) => {
+          console.error('Stream error:', error);
+          reject(error);
+        });
 
-          // Add the function result to the messages
-          messages.push({
-            role: "function",
-            name: functionName,
-            content: functionResult,
-          });
-        }
+        stream.on('end', () => {
+          if (functionCall) {
+            resolve();
+          } else {
+            assistantFinished = true;
+            res.end();
+            resolve();
+          }
+        });
+      });
+
+      if (assistantFinished) break;
+
+      // Handle function call
+      let functionResponse;
+      if (functionCall === 'get_crypto_currencies') {
+        functionResponse = await getCryptoCurrencies();
+      } else if (functionCall === 'get_crypto_news') {
+        functionResponse = await getCryptoNews();
+      } else {
+        functionResponse = { error: 'Unknown function' };
       }
 
-      // Send the final response
-      if (!res.headersSent) {
-        res.json(assistantResponse);
-        async function main() {
-          const myThread = await openai.beta.threads.retrieve(
-            "thread_abc123"
-          );
-        
-          console.log(myThread);
-        }
-        console.log("Final assistant response:\n", );
-      }
-    } catch (error) {
-      console.error("Error during assistant interaction:", error);
-      if (!res.headersSent) {
-        res.status(500).send("An error occurred while processing your request.");
-      }
+      messages.push({
+        role: 'assistant',
+        content: null,
+        function_call: {
+          name: functionCall,
+          arguments: JSON.stringify(functionArgs),
+        },
+      });
+
+      messages.push({
+        role: 'function',
+        name: functionCall,
+        content: JSON.stringify(functionResponse),
+      });
+
+      functionCall = null;
+      functionArgs = null;
+    }
+  } catch (error) {
+    console.error('Error processing request:', error);
+    if (!res.headersSent) {
+      res
+        .status(500)
+        .send('An error occurred while processing your request.');
+    } else {
+      res.end();
     }
   }
-
-  main(); // Call the main function when the API route is hit
 });
