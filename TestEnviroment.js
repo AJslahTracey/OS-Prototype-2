@@ -17,13 +17,18 @@ app.listen(port, () => {
 
 
 const openai = new OpenAI({
-  apiKey: "sk-proj-Z27B2NEPytnprItc7KTgT3BlbkFJlwkPynY7zaHJauhT6mJy" // Replace with your actual OpenAI API key
+  apiKey: process.env.OPENAI_API_KEY  // OpenAI API key from .env
 });
 
-const cryptoApiKey = "969b602d4303313e070ba3417c888fdb6f5834a783410b775b99e49d4416"; // Replace with your actual CryptoRank API key
+// CryptoRank API key
+const cryptoApiKey = process.env.CRYPTO_API_KEY;  // CryptoRank API key from .env
 
+// GNews API key for news
+const gNewsapiKey = process.env.GNEWS_API_KEY;  // GNews API key from .env
+
+// Function to fetch crypto currencies
 async function getCryptoCurrencies() {
-  const apiUrl = `https://api.cryptorank.io/v1/currencies?api_key=${cryptoApiKey}`; // Use the API key directly here
+  const apiUrl = `https://api.cryptorank.io/v1/currencies?api_key=${cryptoApiKey}`; // Use the API key from .env
 
   try {
     const response = await fetch(apiUrl, {
@@ -40,14 +45,11 @@ async function getCryptoCurrencies() {
   }
 }
 
-
-//Getting realtime news
-
+// Function to fetch crypto news
 async function getCryptoNews() {
   const defaultSearchCategory = 'crypto';  // Default search term
   const defaultMaxArticles = 20;  // Default number of articles
 
-  const gNewsapiKey = '928ff2bfd7e07886724eafe29ae2e372';  // Your API key
   const url = `https://gnews.io/api/v4/search?q=${defaultSearchCategory}&lang=en&country=us&max=${defaultMaxArticles}&apikey=${gNewsapiKey}`;
   
   try {
@@ -70,6 +72,12 @@ async function getCryptoNews() {
     return { error: error.message };
   }
 }
+
+
+
+
+
+
 
 //create assistant 
 let assistant;
