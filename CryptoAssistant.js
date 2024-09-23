@@ -6,10 +6,13 @@ const app = express();
 const port = 4000;
 
 
-//Hosting server
+
+const port = process.env.PORT || 4000;  // Use Railway's assigned port, fallback to 4000 for local dev
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
+//Getting real time Prices of Crypto currencies
+
 
 //Getting real time Prices of Crypto currencies
 
