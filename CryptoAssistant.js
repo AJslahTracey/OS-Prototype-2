@@ -49,7 +49,7 @@ async function getCryptoNews() {
   const defaultSearchCategory = 'crypto';  // Default search term
   const defaultMaxArticles = 20;  // Default number of articles
 
-  const gNewsapiKey = '928ff2bfd7e07886724eafe29ae2e372';  // Your API key
+  const gNewsapiKey = 'gNewsAPI-KEY';  // Your API key
   const url = `https://gnews.io/api/v4/search?q=${defaultSearchCategory}&lang=en&country=us&max=${defaultMaxArticles}&apikey=${gNewsapiKey}`;
   
   try {
