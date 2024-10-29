@@ -19,10 +19,10 @@ app.listen(port, () => {
 
 
 const openai = new OpenAI({
-  apiKey: "sk-proj-Z27B2NEPytnprItc7KTgT3BlbkFJlwkPynY7zaHJauhT6mJy" // Replace with your actual OpenAI API key
+  apiKey: "openAI-API-KEY" // Replace with your actual OpenAI API key
 });
 
-const cryptoApiKey = "969b602d4303313e070ba3417c888fdb6f5834a783410b775b99e49d4416"; // Replace with your actual CryptoRank API key
+const cryptoApiKey = "CryptoRankAPI-KEY"; // Replace with your actual CryptoRank API key
 
 async function getCryptoCurrencies() {
   const apiUrl = `https://api.cryptorank.io/v1/currencies?api_key=${cryptoApiKey}`; // Use the API key directly here
